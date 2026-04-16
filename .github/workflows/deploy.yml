@@ -22,7 +22,7 @@ jobs:
 
       - name: Build Lambda
         run: |
-          cargo lambda build --release --arm64
+          cargo lambda build --release --arm64 --output-format zip
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
