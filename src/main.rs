@@ -3,12 +3,13 @@ mod gemini;
 mod models;
 mod pipeline;
 
+use aws_lambda_events::event::lambda_url::{LambdaFunctionUrlRequest, LambdaFunctionUrlResponse};
 use lambda_runtime::{service_fn, Error as LambdaError, LambdaEvent};
 use std::sync::Arc;
 use tracing::{error, info};
 
 use crate::gemini::GeminiClient;
-use crate::models::{FinalResponse, RequestPayload};
+use crate::models::RequestPayload;
 use crate::pipeline::Pipeline;
 
 #[tokio::main]
@@ -26,10 +27,29 @@ async fn main() -> Result<(), LambdaError> {
     Ok(())
 }
 
-async fn func_handler(event: LambdaEvent<RequestPayload>) -> Result<FinalResponse, LambdaError> {
-    let payload = event.payload;
-    let audio_url = payload.audio_url;
+async fn func_handler(
+    event: LambdaEvent<LambdaFunctionUrlRequest>,
+) -> Result<LambdaFunctionUrlResponse, LambdaError> {
+    // 1. Extraer el body del evento de Function URL
+    let body_str = event.payload.body.as_deref().unwrap_or("{}");
+    
+    // 2. Deserializar el JSON real que envía Flutter
+    let payload: RequestPayload = match serde_json::from_str(body_str) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Failed to deserialize request body: {}. Body was: {}", e, body_str);
+            return Ok(LambdaFunctionUrlResponse {
+                status_code: 400,
+                body: Some(format!("Invalid JSON: {}", e).into()),
+                headers: Default::default(),
+                multi_value_headers: Default::default(),
+                is_base64_encoded: false,
+                cookies: vec![],
+            });
+        }
+    };
 
+    let audio_url = payload.audio_url;
     info!("Request received for URL: {}", audio_url);
 
     // Initialize Gemini Client
@@ -37,21 +57,48 @@ async fn func_handler(event: LambdaEvent<RequestPayload>) -> Result<FinalRespons
         Ok(client) => Arc::new(client),
         Err(e) => {
             error!("Error initializing Gemini client: {}", e);
-            return Err(e.into());
+            return Ok(LambdaFunctionUrlResponse {
+                status_code: 500,
+                body: Some("Error initializing Gemini client".into()),
+                headers: Default::default(),
+                multi_value_headers: Default::default(),
+                is_base64_encoded: false,
+                cookies: vec![],
+            });
         }
     };
 
     let pipeline = Pipeline::new(gemini_client);
 
-    // Execute the pipeline
+    // 3. Ejecutar el pipeline
     match pipeline.run_pipeline(&audio_url).await {
         Ok(response) => {
             info!("Audio processing successful.");
-            Ok(response)
+            let json_response = serde_json::to_string(&response)?;
+            
+            Ok(LambdaFunctionUrlResponse {
+                status_code: 200,
+                body: Some(json_response.into()),
+                headers: {
+                    let mut h = std::collections::HashMap::new();
+                    h.insert("Content-Type".to_string(), "application/json".to_string());
+                    h
+                },
+                multi_value_headers: Default::default(),
+                is_base64_encoded: false,
+                cookies: vec![],
+            })
         }
         Err(e) => {
             error!("Pipeline execution failed: {}", e);
-            Err(e.into())
+            Ok(LambdaFunctionUrlResponse {
+                status_code: 500,
+                body: Some(format!("Pipeline error: {}", e).into()),
+                headers: Default::default(),
+                multi_value_headers: Default::default(),
+                is_base64_encoded: false,
+                cookies: vec![],
+            })
         }
     }
 }
