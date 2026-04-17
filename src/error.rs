@@ -6,6 +6,8 @@ pub enum AppError {
     Reqwest(#[from] reqwest::Error),
     #[error("JSON serialization/deserialization failed: {0}")]
     Serde(#[from] serde_json::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
     #[error("Gemini API error: {0}")]
     Gemini(String),
     #[error("Missing environment variable: {0}")]

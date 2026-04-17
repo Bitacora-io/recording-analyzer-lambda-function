@@ -47,13 +47,35 @@ impl Pipeline {
 
     async fn transcribe(&self, audio_url: &str) -> Result<Vec<TranscriptItem>, AppError> {
         let prompt = "You are a specialized audio transcription system. \
-            Analyze the provided audio file URL and generate a full transcript in its original language (e.g., if the audio is in Spanish, transcribe in Spanish; if in English, transcribe in English). \
+            Analyze the provided audio and generate a full transcript in its original language. \
             Provide timestamps and speaker diarization (e.g., 'Speaker A', 'Speaker B'). \
+            To ensure the full transcript fits in the response, group consecutive sentences from the same speaker into larger blocks (aim for 30-60 seconds per block when possible). \
             Output strictly as a JSON array of objects, with each object having exactly these keys: \
             'start_time' (string, e.g., '00:00:00'), 'end_time' (string), 'speaker' (string), 'text' (string). \
             Do not include any other text, markdown blocks, or explanation. Ensure valid JSON format.";
 
-        let result = self.gemini.call_gemini(prompt, audio_url).await?;
+        // 1. Download file to /tmp
+        let temp_path = "/tmp/recording_to_process";
+        self.gemini.download_file(audio_url, temp_path).await?;
+
+        // 2. Determine mime type (simple extension-based)
+        let mime_type = if audio_url.ends_with(".m4a") {
+            "audio/mp4"
+        } else if audio_url.ends_with(".wav") {
+            "audio/wav"
+        } else {
+            "audio/mpeg" // Default to mp3
+        };
+
+        // 3. Upload to Gemini File API
+        let file_uri = self.gemini.upload_file(temp_path, mime_type).await?;
+
+        // 4. Call Gemini with File
+        let result = self.gemini.call_gemini_with_file(prompt, &file_uri, mime_type).await?;
+
+        // 5. Cleanup temp file
+        let _ = tokio::fs::remove_file(temp_path).await;
+
         let parsed: Vec<TranscriptItem> = serde_json::from_str(&result)?;
         Ok(parsed)
     }
