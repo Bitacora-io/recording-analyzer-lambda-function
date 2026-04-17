@@ -4,6 +4,7 @@ mod models;
 mod pipeline;
 
 use aws_lambda_events::event::lambda_function_urls::{LambdaFunctionUrlRequest, LambdaFunctionUrlResponse};
+use aws_lambda_events::http::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use lambda_runtime::{service_fn, Error as LambdaError, LambdaEvent};
 use std::sync::Arc;
 use tracing::{error, info};
@@ -41,8 +42,7 @@ async fn func_handler(
             return Ok(LambdaFunctionUrlResponse {
                 status_code: 400,
                 body: Some(format!("Invalid JSON: {}", e).into()),
-                headers: Default::default(),
-                multi_value_headers: Default::default(),
+                headers: HeaderMap::new(),
                 is_base64_encoded: false,
                 cookies: vec![],
             });
@@ -60,8 +60,7 @@ async fn func_handler(
             return Ok(LambdaFunctionUrlResponse {
                 status_code: 500,
                 body: Some("Error initializing Gemini client".into()),
-                headers: Default::default(),
-                multi_value_headers: Default::default(),
+                headers: HeaderMap::new(),
                 is_base64_encoded: false,
                 cookies: vec![],
             });
@@ -76,15 +75,13 @@ async fn func_handler(
             info!("Audio processing successful.");
             let json_response = serde_json::to_string(&response)?;
             
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
             Ok(LambdaFunctionUrlResponse {
                 status_code: 200,
                 body: Some(json_response.into()),
-                headers: {
-                    let mut h = std::collections::HashMap::new();
-                    h.insert("Content-Type".to_string(), "application/json".to_string());
-                    h
-                },
-                multi_value_headers: Default::default(),
+                headers,
                 is_base64_encoded: false,
                 cookies: vec![],
             })
@@ -94,11 +91,10 @@ async fn func_handler(
             Ok(LambdaFunctionUrlResponse {
                 status_code: 500,
                 body: Some(format!("Pipeline error: {}", e).into()),
-                headers: Default::default(),
-                multi_value_headers: Default::default(),
+                headers: HeaderMap::new(),
                 is_base64_encoded: false,
                 cookies: vec![],
-            })
+            });
         }
     }
 }
