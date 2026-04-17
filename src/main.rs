@@ -3,7 +3,7 @@ mod gemini;
 mod models;
 mod pipeline;
 
-use aws_lambda_events::event::lambda_url::{LambdaFunctionUrlRequest, LambdaFunctionUrlResponse};
+use aws_lambda_events::event::lambda_function_urls::{LambdaFunctionUrlRequest, LambdaFunctionUrlResponse};
 use lambda_runtime::{service_fn, Error as LambdaError, LambdaEvent};
 use std::sync::Arc;
 use tracing::{error, info};
