@@ -94,7 +94,7 @@ async fn func_handler(
                 headers: HeaderMap::new(),
                 is_base64_encoded: false,
                 cookies: vec![],
-            });
+            })
         }
     }
 }

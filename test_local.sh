@@ -7,6 +7,8 @@ echo "🔍 Preparing local test environment..."
 
 # 1. Load API Key from .env file if it exists
 if [ -f .env ]; then
+    # shellcheck disable=SC2046
+    # shellcheck disable=SC2002
     export $(cat .env | grep -v '^#' | xargs)
     echo "✅ Environment variables loaded from .env"
 else
@@ -29,6 +31,7 @@ WATCH_PID=$!
 
 # Configure a "trap" to ensure we stop the Lambda process when exiting the script,
 # regardless of whether the test succeeds or fails.
+# shellcheck disable=SC2064
 trap "echo '🛑 Stopping local emulator...'; kill $WATCH_PID 2>/dev/null; rm -f lambda_watch.log" EXIT
 
 # 3. Wait for the server to be ready (Rust compilation may take a few seconds)
@@ -46,7 +49,7 @@ fi
 echo "📡 Sending test event..."
 
 # You can change this URL for a real publicly accessible audio
-TEST_AUDIO_URL="https://firebasestorage.googleapis.com/v0/b/bitacora-657e2.appspot.com/o/vertex_temp%2FGMT20260212-190237_Recording.m4a?alt=media&token=4de20a19-2ecc-4815-9895-c4fe4935eeae"
+TEST_AUDIO_URL="https://firebasestorage.googleapis.com/v0/b/bitacora-657e2.appspot.com/o/recordings%2Fedb2fbc3-a3b9-4bca-8718-eb1c35efad4c_GMT20260212-190237_Recording.m4a?alt=media&token=4826d6e2-7e9c-404e-9bc6-772c30d79647"
 
 echo "   Invoking with URL: $TEST_AUDIO_URL"
 echo "--------------------------------------------------------"
