@@ -41,7 +41,7 @@ async fn func_handler(
             error!("Failed to deserialize request body: {}. Body was: {}", e, body_str);
             return Ok(LambdaFunctionUrlResponse {
                 status_code: 400,
-                body: Some(format!("Invalid JSON: {}", e).into()),
+                body: Some(format!("Invalid JSON: {}", e)),
                 headers: HeaderMap::new(),
                 is_base64_encoded: false,
                 cookies: vec![],
@@ -80,7 +80,7 @@ async fn func_handler(
 
             Ok(LambdaFunctionUrlResponse {
                 status_code: 200,
-                body: Some(json_response.into()),
+                body: Some(json_response),
                 headers,
                 is_base64_encoded: false,
                 cookies: vec![],
@@ -90,7 +90,7 @@ async fn func_handler(
             error!("Pipeline execution failed: {}", e);
             Ok(LambdaFunctionUrlResponse {
                 status_code: 500,
-                body: Some(format!("Pipeline error: {}", e).into()),
+                body: Some(format!("Pipeline error: {}", e)),
                 headers: HeaderMap::new(),
                 is_base64_encoded: false,
                 cookies: vec![],

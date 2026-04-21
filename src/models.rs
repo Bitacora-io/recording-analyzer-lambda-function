@@ -42,11 +42,20 @@ pub struct Highlight {
     pub reason: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SpeakerParticipation {
+    pub speaker: String,
+    pub percentage: f32,
+    pub duration_seconds: f32,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct FinalResponse {
+    pub title: String,
     pub transcript: Vec<TranscriptItem>,
     pub topics: Vec<Topic>,
     pub summary: Summary,
     pub action_items: Vec<ActionItem>,
     pub highlights: Vec<Highlight>,
+    pub participation: Vec<SpeakerParticipation>,
 }

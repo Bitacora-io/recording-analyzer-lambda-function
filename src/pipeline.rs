@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use futures::try_join;
 use tracing::info;
+use serde::Deserialize;
 
 use crate::models::*;
 use crate::error::AppError;
@@ -26,22 +27,28 @@ impl Pipeline {
         // Convert the transcription to a JSON string to pass it as input to the next steps
         let transcript_json = serde_json::to_string(&transcript)?;
 
-        info!("Stage 2-5: Extracting information in parallel...");
-        // Steps 2 to 5: Executed concurrently as they are independent
-        let (topics, summary, action_items, highlights) = try_join!(
+        info!("Stage 2-6: Extracting information in parallel...");
+        // Steps 2 to 6: Executed concurrently as they are independent
+        let (topics, summary, action_items, highlights, title) = try_join!(
             self.extract_topics(&transcript_json),
             self.extract_summary(&transcript_json),
             self.extract_action_items(&transcript_json),
-            self.extract_highlights(&transcript_json)
+            self.extract_highlights(&transcript_json),
+            self.extract_title(&transcript_json)
         )?;
+
+        info!("Calculating speaker participation...");
+        let participation = self.calculate_participation(&transcript);
 
         info!("Pipeline completed successfully.");
         Ok(FinalResponse {
+            title,
             transcript,
             topics,
             summary,
             action_items,
             highlights,
+            participation,
         })
     }
 
@@ -132,4 +139,67 @@ impl Pipeline {
         let parsed: Vec<Highlight> = serde_json::from_str(&result)?;
         Ok(parsed)
     }
+
+    async fn extract_title(&self, transcript: &str) -> Result<String, AppError> {
+        let prompt = "Analyze the provided meeting transcript and generate a concise and descriptive title for the session. \
+            The title MUST be in the same language as the transcript. \
+            Output strictly as a JSON object with a single key 'title' containing the string value. \
+            Do not include any other text or markdown formatting. Ensure valid JSON format.";
+
+        let result = self.gemini.call_gemini(prompt, transcript).await?;
+        
+        #[derive(Deserialize)]
+        struct TitleResponse { title: String }
+        let parsed: TitleResponse = serde_json::from_str(&result)?;
+        Ok(parsed.title)
+    }
+
+    fn calculate_participation(&self, transcript: &[TranscriptItem]) -> Vec<SpeakerParticipation> {
+        use std::collections::HashMap;
+
+        let mut durations: HashMap<String, f32> = HashMap::new();
+        let mut total_duration: f32 = 0.0;
+
+        for item in transcript {
+            let start = parse_timestamp(&item.start_time);
+            let end = parse_timestamp(&item.end_time);
+            let duration = (end - start).max(0.0);
+
+            *durations.entry(item.speaker.clone()).or_insert(0.0) += duration;
+            total_duration += duration;
+        }
+
+        let mut result = Vec::new();
+        if total_duration > 0.0 {
+            for (speaker, duration) in durations {
+                result.push(SpeakerParticipation {
+                    speaker,
+                    duration_seconds: duration,
+                    percentage: (duration / total_duration) * 100.0,
+                });
+            }
+        }
+        
+        // Sort by percentage descending
+        result.sort_by(|a, b| b.percentage.partial_cmp(&a.percentage).unwrap_or(std::cmp::Ordering::Equal));
+        result
+    }
+}
+
+fn parse_timestamp(ts: &str) -> f32 {
+    let parts: Vec<&str> = ts.split(':').collect();
+    let mut seconds = 0.0;
+    if parts.len() == 3 {
+        // HH:MM:SS
+        seconds += parts[0].parse::<f32>().unwrap_or(0.0) * 3600.0;
+        seconds += parts[1].parse::<f32>().unwrap_or(0.0) * 60.0;
+        seconds += parts[2].parse::<f32>().unwrap_or(0.0);
+    } else if parts.len() == 2 {
+        // MM:SS
+        seconds += parts[0].parse::<f32>().unwrap_or(0.0) * 60.0;
+        seconds += parts[1].parse::<f32>().unwrap_or(0.0);
+    } else {
+        seconds += ts.parse::<f32>().unwrap_or(0.0);
+    }
+    seconds
 }
