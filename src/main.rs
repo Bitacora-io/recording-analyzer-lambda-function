@@ -3,7 +3,9 @@ mod gemini;
 mod models;
 mod pipeline;
 
-use aws_lambda_events::event::lambda_function_urls::{LambdaFunctionUrlRequest, LambdaFunctionUrlResponse};
+use aws_lambda_events::event::lambda_function_urls::{
+    LambdaFunctionUrlRequest, LambdaFunctionUrlResponse,
+};
 use aws_lambda_events::http::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use lambda_runtime::{service_fn, Error as LambdaError, LambdaEvent};
 use std::sync::Arc;
@@ -33,12 +35,15 @@ async fn func_handler(
 ) -> Result<LambdaFunctionUrlResponse, LambdaError> {
     // 1. Extraer el body del evento de Function URL
     let body_str = event.payload.body.as_deref().unwrap_or("{}");
-    
+
     // 2. Deserializar el JSON real que envía Flutter
     let payload: RequestPayload = match serde_json::from_str(body_str) {
         Ok(p) => p,
         Err(e) => {
-            error!("Failed to deserialize request body: {}. Body was: {}", e, body_str);
+            error!(
+                "Failed to deserialize request body: {}. Body was: {}",
+                e, body_str
+            );
             return Ok(LambdaFunctionUrlResponse {
                 status_code: 400,
                 body: Some(format!("Invalid JSON: {}", e)),
@@ -74,7 +79,7 @@ async fn func_handler(
         Ok(response) => {
             info!("Audio processing successful.");
             let json_response = serde_json::to_string(&response)?;
-            
+
             let mut headers = HeaderMap::new();
             headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
 

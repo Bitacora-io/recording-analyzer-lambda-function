@@ -5,20 +5,28 @@ set -e
 
 echo "🔍 Preparing local test environment..."
 
-# 1. Load API Key from .env file if it exists
+# 1. Load Vertex AI configuration from .env file if it exists
 if [ -f .env ]; then
-    # shellcheck disable=SC2046
-    # shellcheck disable=SC2002
-    export $(cat .env | grep -v '^#' | xargs)
+    set -a
+    # shellcheck disable=SC1091
+    source .env
+    set +a
     echo "✅ Environment variables loaded from .env"
 else
     echo "⚠️ .env file not found. Using system environment variables."
 fi
 
-# Validate that the API key is configured
-if [ -z "$GEMINI_API_KEY" ] || [ "$GEMINI_API_KEY" == "" ]; then
-    echo "❌ Error: GEMINI_API_KEY variable is invalid or not configured."
-    echo "Please create a .env file by copying .env.example and place your real API Key:"
+# Validate that Google credentials are configured
+if [ -n "$GOOGLE_SERVICE_ACCOUNT" ] && [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ]; then
+    export GOOGLE_SERVICE_ACCOUNT_JSON="$GOOGLE_SERVICE_ACCOUNT"
+fi
+
+if { [ -z "$GOOGLE_SERVICE_ACCOUNT_JSON" ] || [ "$GOOGLE_SERVICE_ACCOUNT_JSON" == "" ]; } && \
+   { [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ] || [ "$GOOGLE_APPLICATION_CREDENTIALS" == "" ]; }; then
+    echo "❌ Error: Google service account credentials are not configured."
+    echo "Please create a .env file by copying .env.example and configure either:"
+    echo "  GOOGLE_SERVICE_ACCOUNT_JSON"
+    echo "  GOOGLE_APPLICATION_CREDENTIALS"
     echo "  cp .env.example .env"
     exit 1
 fi
@@ -49,12 +57,40 @@ fi
 echo "📡 Sending test event..."
 
 # You can change this URL for a real publicly accessible audio
-TEST_AUDIO_URL="https://firebasestorage.googleapis.com/v0/b/bitacora-657e2.appspot.com/o/recordings%2Fedb2fbc3-a3b9-4bca-8718-eb1c35efad4c_GMT20260212-190237_Recording.m4a?alt=media&token=4826d6e2-7e9c-404e-9bc6-772c30d79647"
+TEST_AUDIO_URL="https://firebasestorage.googleapis.com/v0/b/bitacora-657e2.appspot.com/o/vertex_temp%2F36241591-600b-40e3-8df2-accd6048ca94_1776617411856_audio_recording_1776617401389.m4a?alt=media&token=9b767b78-d55e-47b3-a65b-b869f06803b4"
+
+# Create the nested JSON structure required by LambdaFunctionUrlRequest
+RAW_PAYLOAD="{ \"audio_url\": \"$TEST_AUDIO_URL\" }"
+WRAPPED_PAYLOAD=$(jq -n --arg body "$RAW_PAYLOAD" '{
+  "version": "2.0",
+  "routeKey": "$default",
+  "rawPath": "/",
+  "rawQueryString": "",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "requestContext": {
+    "http": {
+      "method": "POST",
+      "path": "/",
+      "protocol": "HTTP/1.1",
+      "sourceIp": "127.0.0.1",
+      "userAgent": "Custom Client"
+    },
+    "requestId": "id",
+    "routeKey": "$default",
+    "stage": "$default",
+    "time": "12/Mar/2026:19:03:58 +0000",
+    "timeEpoch": 1741806238000
+  },
+  "body": $body,
+  "isBase64Encoded": false
+}')
 
 echo "   Invoking with URL: $TEST_AUDIO_URL"
 echo "--------------------------------------------------------"
 
-cargo lambda invoke --data-ascii "{ \"audio_url\": \"$TEST_AUDIO_URL\" }"
+cargo lambda invoke --data-ascii "$WRAPPED_PAYLOAD"
 
 echo ""
 echo "--------------------------------------------------------"

@@ -5,6 +5,8 @@ Cargo.lock
 # Environment
 .env
 .env.local
+*service-account*.json
+bitacora-*.json
 
 # IDEs
 .idea/

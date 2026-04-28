@@ -1,6 +1,6 @@
 # Recording Analyzer Lambda Function (Rust)
 
-Esta función de AWS Lambda procesa archivos de audio utilizando la API de **Google Gemini** para generar transcripciones, resúmenes ejecutivos, extracción de tópicos, action items y highlights de forma automatizada.
+Esta función de AWS Lambda procesa archivos de audio utilizando **Gemini en Vertex AI** para generar transcripciones, resúmenes ejecutivos, extracción de tópicos, action items y highlights de forma automatizada.
 
 ## Arquitectura
 
@@ -16,7 +16,7 @@ El proceso se divide en un pipeline modular:
 
 - [Rust](https://www.rust-lang.org/) (Stable)
 - [Cargo Lambda](https://www.cargo-lambda.info/)
-- API Key de Google Gemini (AI Studio)
+- Service account de Google Cloud con permisos para usar Vertex AI
 
 ## Despliegue
 
@@ -30,6 +30,14 @@ Para que el despliegue funcione, el repositorio debe tener configurados los sigu
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `LAMBDA_FUNCTION_NAME`
+
+La función Lambda debe tener configuradas estas variables de entorno:
+- `GOOGLE_SERVICE_ACCOUNT_JSON`: JSON completo del service account de Google Cloud. Recomendado para Lambda, idealmente cargado desde Secrets Manager.
+- `VERTEX_AI_PROJECT_ID`: opcional si el JSON ya contiene el `project_id`.
+- `VERTEX_AI_LOCATION`: opcional, por defecto `global`.
+- `VERTEX_AI_MODEL`: opcional, por defecto `gemini-3-flash-preview`.
+
+Para desarrollo local también se puede usar `GOOGLE_APPLICATION_CREDENTIALS` apuntando al archivo JSON del service account.
 
 ## Desarrollo Local
 

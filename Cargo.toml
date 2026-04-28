@@ -14,3 +14,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 thiserror = "1.0"
 futures = "0.3"
 aws_lambda_events = { version = "0.15.0", features = ["lambda_function_urls"] }
+jsonwebtoken = "9"
+percent-encoding = "2.3"

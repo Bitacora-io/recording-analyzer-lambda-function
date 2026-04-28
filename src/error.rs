@@ -10,6 +10,8 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("Gemini API error: {0}")]
     Gemini(String),
+    #[error("Google auth error: {0}")]
+    Auth(String),
     #[error("Missing environment variable: {0}")]
     Env(String),
     #[error("Timeout error")]

@@ -1,11 +1,11 @@
-use std::sync::Arc;
 use futures::try_join;
-use tracing::info;
 use serde::Deserialize;
+use std::sync::Arc;
+use tracing::info;
 
-use crate::models::*;
 use crate::error::AppError;
 use crate::gemini::GeminiClient;
+use crate::models::*;
 
 pub struct Pipeline {
     gemini: Arc<GeminiClient>,
@@ -19,7 +19,7 @@ impl Pipeline {
     /// Executes the entire audio analysis pipeline
     pub async fn run_pipeline(&self, audio_url: &str) -> Result<FinalResponse, AppError> {
         info!("Starting pipeline for URL: {}", audio_url);
-        
+
         // Step 1: Transcription (this step is blocking for the others)
         info!("Stage 1: Obtaining transcription...");
         let transcript = self.transcribe(audio_url).await?;
@@ -61,27 +61,20 @@ impl Pipeline {
             'start_time' (string, e.g., '00:00:00'), 'end_time' (string), 'speaker' (string), 'text' (string). \
             Do not include any other text, markdown blocks, or explanation. Ensure valid JSON format.";
 
-        // 1. Download file to /tmp
-        let temp_path = "/tmp/recording_to_process";
-        self.gemini.download_file(audio_url, temp_path).await?;
-
-        // 2. Determine mime type (simple extension-based)
-        let mime_type = if audio_url.ends_with(".m4a") {
+        // Determine mime type (simple extension-based)
+        let audio_path = audio_url.split(['?', '#']).next().unwrap_or(audio_url);
+        let mime_type = if audio_path.ends_with(".m4a") || audio_path.ends_with(".mp4") {
             "audio/mp4"
-        } else if audio_url.ends_with(".wav") {
+        } else if audio_path.ends_with(".wav") {
             "audio/wav"
         } else {
             "audio/mpeg" // Default to mp3
         };
 
-        // 3. Upload to Gemini File API
-        let file_uri = self.gemini.upload_file(temp_path, mime_type).await?;
-
-        // 4. Call Gemini with File
-        let result = self.gemini.call_gemini_with_file(prompt, &file_uri, mime_type).await?;
-
-        // 5. Cleanup temp file
-        let _ = tokio::fs::remove_file(temp_path).await;
+        let result = self
+            .gemini
+            .call_gemini_with_audio_url(prompt, audio_url, mime_type)
+            .await?;
 
         let parsed: Vec<TranscriptItem> = serde_json::from_str(&result)?;
         Ok(parsed)
@@ -147,9 +140,11 @@ impl Pipeline {
             Do not include any other text or markdown formatting. Ensure valid JSON format.";
 
         let result = self.gemini.call_gemini(prompt, transcript).await?;
-        
+
         #[derive(Deserialize)]
-        struct TitleResponse { title: String }
+        struct TitleResponse {
+            title: String,
+        }
         let parsed: TitleResponse = serde_json::from_str(&result)?;
         Ok(parsed.title)
     }
@@ -179,9 +174,13 @@ impl Pipeline {
                 });
             }
         }
-        
+
         // Sort by percentage descending
-        result.sort_by(|a, b| b.percentage.partial_cmp(&a.percentage).unwrap_or(std::cmp::Ordering::Equal));
+        result.sort_by(|a, b| {
+            b.percentage
+                .partial_cmp(&a.percentage)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         result
     }
 }
