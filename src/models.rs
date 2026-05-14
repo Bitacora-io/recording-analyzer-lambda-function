@@ -1,8 +1,34 @@
 use serde::{Deserialize, Serialize};
+use crate::error::AppError;
 
 #[derive(Deserialize, Debug)]
 pub struct RequestPayload {
     pub audio_url: String,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ErrorResponse {
+    pub error: bool,
+    pub code: String,
+    pub message: String,
+}
+
+impl ErrorResponse {
+    pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            error: true,
+            code: code.into(),
+            message: message.into(),
+        }
+    }
+
+    pub fn from_app_error(err: &AppError) -> Self {
+        Self {
+            error: true,
+            code: err.error_code().to_string(),
+            message: err.user_message(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

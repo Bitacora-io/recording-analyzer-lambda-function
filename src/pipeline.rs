@@ -16,7 +16,7 @@ impl Pipeline {
         Self { gemini }
     }
 
-    /// Executes the entire audio analysis pipeline
+    /// Executes the full meeting analysis pipeline (transcript, topics, action items, etc.)
     pub async fn run_pipeline(&self, audio_url: &str) -> Result<FinalResponse, AppError> {
         info!("Starting pipeline for URL: {}", audio_url);
 
